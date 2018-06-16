@@ -34,7 +34,7 @@ by Robert Beenen
 #define OUTPUT_PIN	10
 
 #define FRAMESIZE	128
-#define INTERPOINTS	8		// number of points to interpolate over
+#define INTERPOINTS	8		// number of points for interpolation
 
 // input
 uint16_t mod1;
@@ -47,8 +47,8 @@ Button button2;
 bool colundi = false;
 bool interpolation = true;
 uint16_t offset;
-uint8_t ratio;
 uint16_t offset_p;		// only updates at phase 0
+uint8_t ratio;
 uint8_t ratio_p;		// so waveforms don't sound garbled when changed
 uint8_t phase = 0;
 uint8_t step = 1;
