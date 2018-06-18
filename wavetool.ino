@@ -1,22 +1,18 @@
 /*	
 
 WAVETOOL
-by Robert Beenen
+Robert Beenen
+foresense.org
 
 	Mod 1:		Pitch
 	Mod 2:		Wavetable
 	Trigger:	
 	Button 1:	
-	Button 2:	
+	Button 2:
 	LED 1:		
-	LED 2:		
+	LED 2:
 
 	*/
-
-//#include <avr/pgmspace.h>
-//#include <avr/interrupt.h>
-
-//TCNT1 = 65386;
 
 #include "SPI.h"
 #include "kas-button.h"
@@ -33,9 +29,6 @@ by Robert Beenen
 #define LED2_PIN 	5
 #define OUTPUT_PIN	10
 
-#define FRAMESIZE	128
-#define INTERPOINTS	8		// number of points for interpolation
-
 // input
 uint16_t mod1;
 uint16_t mod2;
@@ -46,10 +39,8 @@ Button button2;
 // internal
 bool colundi = false;
 bool interpolation = true;
-uint16_t offset;
-uint16_t offset_p;		// only updates at phase 0
-uint8_t ratio;
-uint8_t ratio_p;		// so waveforms don't sound garbled when changed
+uint16_t offset, offset_p;
+uint8_t ratio, ratio_p;
 uint8_t phase = 0;
 uint8_t step = 1;
 
@@ -91,7 +82,7 @@ void loop()
 	mod2 = (analogRead(MOD2_PIN) * 3) >> 2;		// map 1024 to 768:
 												// 96 waveforms, and 3 bits interpolation
 	ratio = mod2 & 0b111;
-	offset = (mod2 >> 3) * FRAMESIZE;			
+	offset = (mod2 >> 3) * 0x7F;
 
 	if(updateButton(&trigger))
 	{
@@ -146,25 +137,27 @@ void loop()
 
 ISR(TIMER1_OVF_vect)
 {
-	TCNT1 = timer1_preload;
-	
-	// step needs to change when it is aligned with phase at 0
-	//if(step > step && !(phase % step))
-	//{
-	//	step_out = step;
-	//}
+	/*
+	the timer1 interrupt (this function) is retriggered at the end of
+	the timer1 counter. set this counter at the start of the interrupt
+	so it will be used to set the update frequency, and the pitch.
+	*/
 
-	if(!phase)
+	TCNT1 = timer1_preload;
+
+	// cycle length is 7 bits, 8th bit is overflow
+	if(phase & 0b10000000)
 	{
 		offset_p = offset;
 		ratio_p = ratio;
+		phase &= 0b01111111;
 	}
 
 	if(interpolation)
 	{
 		// interpolate between 2 waveforms in 3 bits
-		sample = pgm_read_word(&wavetable[offset_p + phase]) * (INTERPOINTS - ratio_p);
-		sample += pgm_read_word(&wavetable[offset_p + FRAMESIZE + phase]) * ratio_p;
+		sample = pgm_read_word(&wavetable[offset_p + phase]) * (8 - ratio_p);
+		sample += pgm_read_word(&wavetable[offset_p + 0x7F + phase]) * ratio_p;
 		sample >>= 3;
 	}
 	else
@@ -173,10 +166,9 @@ ISR(TIMER1_OVF_vect)
 	}
 
 	PORTB &= 0b11111011;
-	SPI.transfer(highByte(sample) | 0x30);
+	SPI.transfer(highByte(sample) | 0x30);	// 0x30 = tell the DAC to do something
 	SPI.transfer(lowByte(sample));
 	PORTB |= 0b00000100;
 
 	phase += step;
-	phase &= 0b01111111;
 }
