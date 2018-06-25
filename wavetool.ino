@@ -11,7 +11,7 @@ by Robert Beenen
 
 	*/
 
-#define DEBUG
+//#define DEBUG
 
 #include "SPI.h"
 #include "tuning.h"
@@ -40,7 +40,8 @@ uint16_t fixate_offset;
 uint8_t ratio;
 uint8_t ratio_p;
 uint8_t phase = 0;
-uint8_t step = 1;
+//uint8_t step = 1;
+bool trigger_state = false;
 bool button1_state = false;
 bool button2_state = false;
 bool fixate = false;
@@ -81,27 +82,37 @@ void loop()
 	mod1 = analogRead(MOD1_PIN);
 	if(fixate)
 	{
-		timer1_preload = pgm_read_word(&tuning_map[(mod1 & 0b1111100000) + fixate_offset]);
+		timer1_preload = pgm_read_word(&tuning_map[(mod1 & 0b1111110000) + fixate_offset]);
 	}
 	else
 	{
 		timer1_preload = pgm_read_word(&tuning_map[mod1]);
-		fixate_offset = mod1 & 0b0000011111;
+		fixate_offset = mod1 & 0b0000001111;
 	}
 
 	mod2 = (analogRead(MOD2_PIN) * 3) >> 2;		// reduce to 3/4 range
 	ratio = mod2 & 0b111;
 	offset = (mod2 >> 3) * 0x80;
 
-	//trigger = (trigger << 1) | !digitalRead(TRIGGER_PIN);
+	trigger = (trigger << 1) | !digitalRead(TRIGGER_PIN);
+	if(trigger && !trigger_state)
+	{
+		trigger_state = true;
+		fixate = true;
+	}
+	else if (!trigger && trigger_state)
+	{
+		trigger_state = false;
+		fixate = false;
+	}
 
 	button1 = (button1 << 1) | !digitalRead(BUTTON1_PIN);
-	if(button1 && !button1_state)	// rising edge
+	if(button1 && !button1_state)
 	{
 		button1_state = true;
 		fixate = !fixate;
 	}
-	else if (!button1)	// debounce technique
+	else if (!button1 && button1_state)
 	{
 		button1_state = false;
 	}
@@ -113,11 +124,11 @@ void loop()
 		button2_state = true;
 		interpolation = !interpolation;
 	}
-	else if (!button2)
+	else if (!button2 && button2_state)
 	{
 		button2_state = false;
 	}
-	digitalWrite(LED2_PIN, interpolation);
+	digitalWrite(LED2_PIN, !interpolation);
 
 #ifdef DEBUG
 	debug_counter++;
@@ -163,5 +174,6 @@ ISR(TIMER1_OVF_vect)	// timer1 overflow interrupt
 	SPI.transfer((sample >> 8) | 0x30);	// sample ms nibble + DAC flag '0b0011'
 	SPI.transfer(sample & 0x00FF);		// sample ls byte
 	PORTB |= 0b00000100;				// close SPI
-	phase += step;
+	
+	phase++;
 }
