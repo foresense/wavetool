@@ -1,6 +1,6 @@
 /*
 
-PROPHECY
+WAVETOOL
 by Robert Beenen
 
     Mod 1:    Pitch
@@ -13,12 +13,14 @@ by Robert Beenen
 	I ripped the raw waveforms from my DSI Evolver (included Python scripts for this)
 	added optional interpolation, a type of frequency lock, and a noise mode in the end.
 
-	Waveform 01 = Sinewave
-	Waveform 02 = Saw
-	Waveform 03 = Square
-	...
-	Waveform 95 = Silence
-	Waveform 96 = Noise
+	Wavetable
+	---------
+	01 = Sinewave
+	02 = Saw
+	03 = Square
+	..
+	95 = Silence
+	96 = Noise
 
 	*/
 
