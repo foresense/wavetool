@@ -1,6 +1,6 @@
 /*
 
-WAVETOOL
+PROPHECY
 by Robert Beenen
 
     Mod 1:    Pitch
@@ -9,9 +9,15 @@ by Robert Beenen
     Button 2: Interpolation
 	Trigger:  Frequency Lock
 
-	Oscillator modeled after the Prophet VS, except with optional interpolation between waveforms.
+	Oscillator modeled after the Prophet VS for Ginko TOOL.
+	I ripped the raw waveforms from my DSI Evolver (included Python scripts for this)
+	added optional interpolation, a type of frequency lock, and a noise mode in the end.
 
-	Wave 95 = Silence
+	Waveform 01 = Sinewave
+	Waveform 02 = Saw
+	Waveform 03 = Square
+	...
+	Waveform 95 = Silence
 	Waveform 96 = Noise
 
 	*/
