@@ -9,9 +9,12 @@ by Robert Beenen
     Button 2: Interpolation
 	Trigger:  Frequency Lock
 
-	*/
+	Oscillator modeled after the Prophet VS, except with optional interpolation between waveforms.
 
-//#define DEBUG
+	Wave 95 = Silence
+	Waveform 96 = Noise
+
+	*/
 
 #include "SPI.h"
 #include "tuning.h"
@@ -36,28 +39,33 @@ uint8_t button2;
 // internal
 uint16_t offset;
 uint16_t offset_p;
-uint16_t fixate_offset;
+uint16_t frequency_offset;
 uint8_t ratio;
 uint8_t ratio_p;
 uint8_t phase = 0;
-//uint8_t step = 1;
+
+// state
 bool trigger_state = false;
 bool button1_state = false;
 bool button2_state = false;
 bool fixate = false;
 bool interpolation = true;
-
-#ifdef DEBUG
-uint8_t debug_counter = 0;
-#endif
-
+bool noise = false;
+	
 // output
 uint16_t timer1_preload;
 uint16_t sample;
 
+uint16_t seed = 1;
+uint16_t rng(void) {
+	if(!seed) seed++;
+	seed ^= seed << 13;
+	seed ^= seed >> 9;
+	seed ^= seed << 7;
+	return seed;
+}
 
-void setup() 
-{
+void setup() {
 	cli();
 	TCCR1A = 0b00000000;		// timer1 flags
 	TCCR1B = 0b00000001;		// no prescaling
@@ -69,111 +77,94 @@ void setup()
 
 	SPI.begin();
 	SPI.setBitOrder(MSBFIRST);
-
-#ifdef DEBUG
-	Serial.begin(9600);
-	Serial.println("WAVETOOL DEBUG");
-	Serial.println();
-#endif
 }
 
-void loop()
-{
+void loop() {
 	mod1 = analogRead(MOD1_PIN);
-	if(fixate)
-	{
-		timer1_preload = pgm_read_word(&tuning_map[(mod1 & 0b1111110000) + fixate_offset]);
-	}
-	else
-	{
-		timer1_preload = pgm_read_word(&tuning_map[mod1]);
-		fixate_offset = mod1 & 0b0000001111;
-	}
-
-	mod2 = (analogRead(MOD2_PIN) * 3) >> 2;		// reduce to 3/4 range
-	ratio = mod2 & 0b111;
-	offset = (mod2 >> 3) * 0x80;
-
+	mod2 = (analogRead(MOD2_PIN) * 3) >> 2;
 	trigger = (trigger << 1) | !digitalRead(TRIGGER_PIN);
-	if(trigger && !trigger_state)
-	{
+	button1 = (button1 << 1) | !digitalRead(BUTTON1_PIN);
+	button2 = (button2 << 1) | !digitalRead(BUTTON2_PIN);
+
+	// set states
+	if(trigger && !trigger_state) {
 		trigger_state = true;
-		fixate = true;
+		frequency_offset = true;
 	}
-	else if (!trigger && trigger_state)
-	{
+	else if (!trigger && trigger_state) {
 		trigger_state = false;
 		fixate = false;
 	}
-
-	button1 = (button1 << 1) | !digitalRead(BUTTON1_PIN);
-	if(button1 && !button1_state)
-	{
+	if(button1 && !button1_state) {
 		button1_state = true;
 		fixate = !fixate;
 	}
-	else if (!button1 && button1_state)
-	{
+	else if (!button1 && button1_state) {
 		button1_state = false;
 	}
-	digitalWrite(LED1_PIN, fixate);
-	
-	button2 = (button2 << 1) | !digitalRead(BUTTON2_PIN);
-	if(button2 && !button2_state)
-	{
+	if(button2 && !button2_state) {
 		button2_state = true;
 		interpolation = !interpolation;
 	}
-	else if (!button2 && button2_state)
-	{
+	else if (!button2 && button2_state) {
 		button2_state = false;
 	}
-	digitalWrite(LED2_PIN, !interpolation);
 
-#ifdef DEBUG
-	debug_counter++;
-	if(!debug_counter)
-	{
-		Serial.print("b1: ");
-		Serial.print(button1);
-		Serial.print(" | b2: ");
-		Serial.print(button2);
-		Serial.print(" | m1: ");
-		Serial.print(mod1);
-		Serial.print(" | m2: ");
-		Serial.println(mod2);
+	// get preload time from tuning map
+	if(fixate) {
+		timer1_preload = pgm_read_word(&tuning_map[(mod1 & 0b1111100000) + frequency_offset]);
 	}
-#endif
+	else {
+		timer1_preload = pgm_read_word(&tuning_map[mod1]);
+		frequency_offset = mod1 & 0b0000011111;
+	}
+
+	// set wavetable offset & interpolation ratio
+	offset = (mod2 >> 3) << 7;
+	ratio = mod2 & 0b111;
+
+	if(offset == 12160 ) { 
+		noise = true;
+	}
+	else {
+		noise = false;
+	}
+
+	// write LED status
+	digitalWrite(LED1_PIN, fixate);
+	digitalWrite(LED2_PIN, !interpolation);
 }
 
-ISR(TIMER1_OVF_vect)	// timer1 overflow interrupt
-{
+// timer1 overflow interrupt
+ISR(TIMER1_OVF_vect) {
+	
 	TCNT1 = timer1_preload;	// timer1 counter gets reset immediately
 
-	if(phase & 0b10000000) // phase runs in 7 bits (128 steps). 8th bit signals overflow.
-	{
+	// phase runs in 7 bits (128 steps). 8th bit signals overflow.
+	if(phase & 0b10000000) {
 		offset_p = offset;
 		ratio_p = ratio;
 		phase &= 0b01111111;
 	}
 
-	if(interpolation)
-	{
-		// interpolate between 2 waveforms in 3 bits
-		// the (uint8_t) cast saves cycles (avoid 16 bit math on an 8 bit cpu)
+	if(noise) {
+		sample = rng() & 0x0FFF;
+	}
+	// interpolate between 2 waveforms in 3 bits
+	// the (uint8_t) cast saves cycles (avoid 16 bit math on an 8 bit cpu)
+	else if(interpolation) {
 		sample = pgm_read_word(&wavetable[offset_p + phase]) * (uint8_t)(8 - ratio_p); 
 		sample += pgm_read_word(&wavetable[offset_p + phase + 0x80]) * ratio_p;
 		sample >>= 3;
 	}
-	else
-	{
+	else {
 		sample = pgm_read_word(&wavetable[offset_p + phase]);
 	}
-										// 12 bit DAC
+	
 	PORTB &= 0b11111011;				// open SPI for writing
 	SPI.transfer((sample >> 8) | 0x30);	// sample ms nibble + DAC flag '0b0011'
 	SPI.transfer(sample & 0x00FF);		// sample ls byte
 	PORTB |= 0b00000100;				// close SPI
 	
-	phase++;
+	phase ++;
 }
