@@ -46,31 +46,27 @@ uint16_t mod2;
 uint8_t trigger;
 uint8_t button1;
 uint8_t button2;
+bool trigger_state = false;
+bool button1_state = false;
+bool button2_state = false;
 
 // internal
+uint16_t mod1_glide;
 uint16_t offset;
 uint16_t offset_p;
 uint8_t ratio;
 uint8_t ratio_p;
-
 uint8_t phase = 0;
-uint8_t pixelphase = 0;
-
-// state
-bool trigger_state = false;
-bool button1_state = false;
-bool button2_state = false;
-bool pixelate = false;
 bool interpolate = true;
 bool noise = false;
+bool pixelate = false;
 	
 // output
-uint16_t timer1_preload;
 uint16_t sample;
+uint16_t timer1_preload;
 
 uint16_t seed = 1;
-uint16_t rng(void)
-{
+uint16_t rng(void) {
 	if(!seed) seed++;
 	seed ^= seed << 13;
 	seed ^= seed >> 9;
@@ -78,8 +74,7 @@ uint16_t rng(void)
 	return seed;
 }
 
-void setup()
-{
+void setup() {
 	cli();
 	TCCR1A = 0b00000000;		// timer1 flags
 	TCCR1B = 0b00000001;		// no prescaling
@@ -93,8 +88,7 @@ void setup()
 	SPI.setBitOrder(MSBFIRST);
 }
 
-void loop()
-{
+void loop() {
 	mod1 = analogRead(MOD1_PIN);
 	mod2 = (analogRead(MOD2_PIN) * 3) >> 2;
 	trigger = (trigger << 1) | !digitalRead(TRIGGER_PIN);
@@ -125,23 +119,21 @@ void loop()
 		button2_state = false;
 	}
 	if(!pixelate) {
-		mod1_current = mod1;
+		mod1_glide = mod1;
 		timer1_preload = pgm_read_word(&tuning_map[mod1]);
 	}
 	else {
-		timer1_preload = pgm_read_word(&tuning_map[mod1]);
+		if (mod1_glide > mod1) mod1_glide --;
+		else if (mod1_glide < mod1) mod1_glide ++;
+		timer1_preload = pgm_read_word(&tuning_map[mod1_glide]);
 	}
 
 	// set wavetable offset & interpolate ratio
 	offset = (mod2 >> 3) << 7;
 	ratio = mod2 & 0b0111;
 
-	if(offset == 12160 ) { 
-		noise = true;
-	}
-	else {
-		noise = false;
-	}
+	if(offset == 12160 ) noise = true;
+	else noise = false;
 
 	// write LED status
 	digitalWrite(LED1_PIN, pixelate);
@@ -149,16 +141,16 @@ void loop()
 }
 
 // timer1 overflow interrupt
-ISR(TIMER1_OVF_vect)
-{
-	TCNT1 = timer1_preload;			// timer1 counter gets reset immediately
-									// phase runs in 7 bits (128 steps).
-	if(phase & 0b10000000) {		// 8th bit signals overflow.
-		offset_p = offset;
+ISR(TIMER1_OVF_vect) {
+	TCNT1 = timer1_preload;			// timer1 counter gets set immediately
+	
+	// only update the waveform at the end of a cycle, this sounds nicer
+	if(phase & 0b10000000) {		// phase runs in 7 bits (128 steps).
+		offset_p = offset;			// 8th bit signifies overflow
 		ratio_p = ratio;
 		phase &= 0b01111111;
 	}
-	
+
 	if(noise) {
 		sample = rng() & 0x0FFF;
 	}
