@@ -5,9 +5,9 @@ by Robert Beenen
 
     Mod 1:    Pitch
     Mod 2:    Wavetable
-	Button 1: Pixelate
+	Button 1: Quantized slide
     Button 2: Interpolate
-	Trigger:  Pixelate
+	Trigger:  Quantized slide
 
 	Oscillator modeled after the Prophet VS for Ginko TOOL.
 	I ripped the raw waveforms from my DSI Evolver (included Python scripts for this)
@@ -54,12 +54,14 @@ bool button2_state = false;
 uint16_t mod1_glide;
 uint16_t offset;
 uint16_t offset_p;
-uint8_t ratio;
-uint8_t ratio_p;
+uint8_t iratio;
+uint8_t iratio_p;
 uint8_t phase = 0;
 bool interpolate = true;
 bool noise = false;
-bool pixelate = false;
+bool qslide = false;
+bool phase_clock = false;
+bool phase_clock_act = false;
 	
 // output
 uint16_t sample;
@@ -98,15 +100,15 @@ void loop() {
 	// set states
 	if(trigger && !trigger_state) {
 		trigger_state = true;
-		pixelate = true;
+		qslide = true;
 	}
 	else if (!trigger && trigger_state) {
 		trigger_state = false;
-		pixelate = false;
+		qslide = false;
 	}
 	if(button1 && !button1_state) {
 		button1_state = true;
-		pixelate = !pixelate;
+		qslide = !qslide;
 	}
 	else if (!button1 && button1_state) {
 		button1_state = false;
@@ -118,25 +120,30 @@ void loop() {
 	else if (!button2 && button2_state) {
 		button2_state = false;
 	}
-	if(!pixelate) {
+	if(!qslide) {
 		mod1_glide = mod1;
 		timer1_preload = pgm_read_word(&tuning_map[mod1]);
 	}
 	else {
+		if (phase_clock && !phase_clock_act) {
+			phase_clock_act = true;
+			timer1_preload = pgm_read_word(&tuning_map[mod1_glide]);
+		}
+		else if (!phase_clock && phase_clock_act) {
+			phase_clock_act = false;
+		}
 		if (mod1_glide > mod1) mod1_glide --;
 		else if (mod1_glide < mod1) mod1_glide ++;
-		timer1_preload = pgm_read_word(&tuning_map[mod1_glide]);
 	}
-
-	// set wavetable offset & interpolate ratio
-	offset = (mod2 >> 3) << 7;
-	ratio = mod2 & 0b0111;
+								// extract wavetable offset and interpolation ratio out of the mod2 10-bit input
+	offset = (mod2 >> 3) << 7; 	// lose first 3 bits, then multiply by 128 to get the offset in the wavetable
+	iratio = mod2 & 0b111;		// first three bits are used to interpolate between wave -> 8 steps!
 
 	if(offset == 12160 ) noise = true;
 	else noise = false;
 
 	// write LED status
-	digitalWrite(LED1_PIN, pixelate);
+	digitalWrite(LED1_PIN, qslide);
 	digitalWrite(LED2_PIN, !interpolate);
 }
 
@@ -147,16 +154,17 @@ ISR(TIMER1_OVF_vect) {
 	// only update the waveform at the end of a cycle, this sounds nicer
 	if(phase & 0b10000000) {		// phase runs in 7 bits (128 steps).
 		offset_p = offset;			// 8th bit signifies overflow
-		ratio_p = ratio;
+		iratio_p = iratio;
 		phase &= 0b01111111;
+		phase_clock = !phase_clock;	// tick tock
 	}
 
 	if(noise) {
-		sample = rng() & 0x0FFF;
+		sample = rng() & 0x0FFF;	// 12 bits
 	}
 	else if(interpolate) {	// interpolate 2 waveforms with 8 steps (3 bits)
-		sample = pgm_read_word(&wavetable[offset_p + phase]) * (uint8_t)(8 - ratio_p); 
-		sample += pgm_read_word(&wavetable[offset_p + phase + 0x80]) * ratio_p;
+		sample = pgm_read_word(&wavetable[offset_p + phase]) * (uint8_t)(8 - iratio_p); 
+		sample += pgm_read_word(&wavetable[offset_p + phase + 0x80]) * iratio_p;
 		sample >>= 3;
 	}
 	else {

@@ -1,3 +1,12 @@
+
+/* 1V per octave mapping over 1024 points in 5 volts
+   
+   5 oct * 12 semitones -> 60 semitones in 1024 points
+   1024 / 60 = 17.0666 -> each semitone step is about 17 steps long
+*/
+
+#define SEMITONE 17
+
 const word tuning_map[] PROGMEM = {
 	61757, 61768, 61778, 61788, 61799, 61809, 61819, 61829,
 	61839, 61849, 61859, 61870, 61880, 61890, 61900, 61910,
