@@ -1,6 +1,6 @@
 /*
 
-WAVETOOL
+WAVETOOL v1.1
 by Robert Beenen
 
     Mod 1:    Pitch
@@ -144,7 +144,7 @@ void loop() {
 
 	// write LED status
 	digitalWrite(LED1_PIN, qslide);
-	digitalWrite(LED2_PIN, !interpolate);
+	digitalWrite(LED2_PIN, interpolate);
 }
 
 // timer1 overflow interrupt
