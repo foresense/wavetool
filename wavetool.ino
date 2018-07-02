@@ -5,27 +5,27 @@ by Robert Beenen
 
     Mod 1:    Pitch
     Mod 2:    Wavetable
-	Button 1: Quantized slide
+    Button 1: Quantized slide
     Button 2: Interpolate
-	Trigger:  Quantized slide
+    Trigger:  Quantized slide
 
-	Oscillator modeled after the Prophet VS for Ginko TOOL.
-	I ripped the raw waveforms from my DSI Evolver (included Python scripts for this)
-	added optional interpolate, a type of frequency lock, and a noise mode in the end.
+    Oscillator modeled after the Prophet VS for Ginko TOOL.
+    I ripped the raw waveforms from my DSI Evolver (included Python scripts for this)
+    added optional interpolate, a type of frequency lock, and a noise mode in the end.
 
-	Thanks to Kassen Oud for the floating samplerate technique,
-	and finding out about the buffered debouncing technique and XOR noise.
+    Thanks to Kassen Oud for the floating samplerate technique,
+    and finding out about the buffered debouncing technique and XOR noise.
 
-	Wavetable
-	---------
-	01 = Sinewave
-	02 = Saw
-	03 = Square
-	..
-	95 = Silence
-	96 = Noise
-	
-	*/
+    Wavetable
+    ---------
+    01 = Sinewave
+    02 = Saw
+    03 = Square
+    ..
+    95 = Silence
+    96 = Noise
+
+    */
 
 #include "SPI.h"
 #include "tuning.h"
