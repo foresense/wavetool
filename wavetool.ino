@@ -7,7 +7,7 @@ by Robert Beenen
     Mod 2:    Wavetable
     Button 1: Quantized slide
     Button 2: Interpolate
-    Trigger:  Quantized slide
+    Gate:     Quantized slide
 
     Oscillator modeled after the Prophet VS for Ginko TOOL.
     I ripped the raw waveforms from my DSI Evolver (included Python scripts for this)
@@ -33,7 +33,7 @@ by Robert Beenen
 
 #define MOD1_PIN 		A1
 #define MOD2_PIN 		A2
-#define TRIGGER_PIN 	4
+#define GATE_PIN 		4
 #define BUTTON1_PIN 	2
 #define BUTTON2_PIN 	9
 #define LED1_PIN 		3
@@ -43,10 +43,10 @@ by Robert Beenen
 // input
 uint16_t mod1;
 uint16_t mod2;
-uint8_t trigger;
+uint8_t gate;
 uint8_t button1;
 uint8_t button2;
-bool trigger_state = false;
+bool gate_state = false;
 bool button1_state = false;
 bool button2_state = false;
 
@@ -67,6 +67,7 @@ bool phase_clock_act = false;
 uint16_t sample;
 uint16_t timer1_preload;
 
+// xor noise function
 uint16_t seed = 1;
 uint16_t rng(void) {
 	if(!seed) seed++;
@@ -93,17 +94,17 @@ void setup() {
 void loop() {
 	mod1 = analogRead(MOD1_PIN);
 	mod2 = (analogRead(MOD2_PIN) * 3) >> 2;
-	trigger = (trigger << 1) | !digitalRead(TRIGGER_PIN);
+	gate = (gate << 1) | !digitalRead(GATE_PIN);
 	button1 = (button1 << 1) | !digitalRead(BUTTON1_PIN);
 	button2 = (button2 << 1) | !digitalRead(BUTTON2_PIN);
 
 	// set states
-	if(trigger && !trigger_state) {
-		trigger_state = true;
+	if(gate && !gate_state) {
+		gate_state = true;
 		qslide = true;
 	}
-	else if (!trigger && trigger_state) {
-		trigger_state = false;
+	else if(!gate && gate_state) {
+		gate_state = false;
 		qslide = false;
 	}
 	if(button1 && !button1_state) {
@@ -163,7 +164,7 @@ ISR(TIMER1_OVF_vect) {
 		sample = rng() & 0x0FFF;	// 12 bits
 	}
 	else if(interpolate) {	// interpolate 2 waveforms with 8 steps (3 bits)
-		sample = pgm_read_word(&wavetable[offset_p + phase]) * (uint8_t)(8 - iratio_p); 
+		sample = pgm_read_word(&wavetable[offset_p + phase]) * (uint8_t)(8 - iratio_p);
 		sample += pgm_read_word(&wavetable[offset_p + phase + 0x80]) * iratio_p;
 		sample >>= 3;
 	}
